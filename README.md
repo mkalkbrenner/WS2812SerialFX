@@ -49,7 +49,7 @@ In it's most simple form, here's the code to get you started!
 byte drawingMemory[LED_COUNT*4];         // 3 bytes per LED for RGB, 4 bytes for RGBW
 DMAMEM byte displayMemory[LED_COUNT*16]; // 12 bytes per LED for RGB, 16 bytes for RGBW
 
-WS2812FX ws2812fx = WS2812FX(LED_COUNT, displayMemory, drawingMemory, LED_PIN, NEO_GRB + NEO_KHZ800);
+WS2812FX ws2812fx = WS2812FX(LED_COUNT, displayMemory, drawingMemory, LED_PIN, WS2812_GRBW);
 
 void setup() {
   ws2812fx.init();
