@@ -50,13 +50,14 @@
   2017-09-26   implemented segment and reverse features
   2017-11-16   changed speed calc, reduced memory footprint
   2018-02-24   added hooks for user created custom effects
+  2021-02-25   experimental port from Adafruit_NeoPixel to WS2812Serial by Markus Kalkbrenner
 */
 
 #include "WS2812FX.h"
 
 void WS2812FX::init() {
   resetSegmentRuntimes();
-  Adafruit_NeoPixel::begin();
+  WS2812Serial::begin();
 }
 
 // void WS2812FX::timer() {
@@ -85,7 +86,7 @@ void WS2812FX::service() {
       }
     }
     if(doShow) {
-      delay(1); // for ESP32 (see https://forums.adafruit.com/viewtopic.php?f=47&t=117327)
+      //delay(1); // for ESP32 (see https://forums.adafruit.com/viewtopic.php?f=47&t=117327)
       show();
     }
     _triggered = false;
@@ -108,19 +109,19 @@ void WS2812FX::setPixelColor(uint16_t n, uint8_t r, uint8_t g, uint8_t b) {
 
 void WS2812FX::setPixelColor(uint16_t n, uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
   if(IS_GAMMA) {
-    Adafruit_NeoPixel::setPixelColor(n, gamma8(r), gamma8(g), gamma8(b), gamma8(w));
+    WS2812Serial::setPixelColor(n, gamma8(r), gamma8(g), gamma8(b), gamma8(w));
   } else {
-    Adafruit_NeoPixel::setPixelColor(n, r, g, b, w);
+    WS2812Serial::setPixelColor(n, r, g, b, w);
   }
 }
 
 void WS2812FX::copyPixels(uint16_t dest, uint16_t src, uint16_t count) {
   uint8_t *pixels = getPixels();
-  uint8_t bytesPerPixel = getNumBytesPerPixel(); // 3=RGB, 4=RGBW
 
   memmove(pixels + (dest * bytesPerPixel), pixels + (src * bytesPerPixel), count * bytesPerPixel);
 }
 
+/*
 // change the underlying Adafruit_NeoPixel pixels pointer (use with care)
 void WS2812FX::setPixels(uint16_t num_leds, uint8_t* ptr) {
   free(Adafruit_NeoPixel::pixels); // free existing data (if any)
@@ -128,10 +129,11 @@ void WS2812FX::setPixels(uint16_t num_leds, uint8_t* ptr) {
   Adafruit_NeoPixel::numLEDs = num_leds;
   Adafruit_NeoPixel::numBytes = num_leds * ((wOffset == rOffset) ? 3 : 4);
 }
+*/
 
 // overload show() functions so we can use custom show()
 void WS2812FX::show(void) {
-  customShow == NULL ? Adafruit_NeoPixel::show() : customShow();
+  customShow == NULL ? WS2812Serial::show() : customShow();
 }
 
 void WS2812FX::start() {
@@ -211,7 +213,7 @@ void WS2812FX::setColors(uint8_t seg, uint32_t* c) {
 
 void WS2812FX::setBrightness(uint8_t b) {
   b = constrain(b, BRIGHTNESS_MIN, BRIGHTNESS_MAX);
-  Adafruit_NeoPixel::setBrightness(b);
+  WS2812Serial::setBrightness(b);
   show();
 }
 
@@ -225,6 +227,7 @@ void WS2812FX::decreaseBrightness(uint8_t s) {
   setBrightness(s);
 }
 
+/*
 void WS2812FX::setLength(uint16_t b) {
   resetSegmentRuntimes();
   if (b < 1) b = 1;
@@ -251,6 +254,7 @@ void WS2812FX::decreaseLength(uint16_t s) {
 
   if (s < seglen) setLength(seglen - s);
 }
+*/
 
 boolean WS2812FX::isRunning() {
   return _running;
@@ -309,11 +313,11 @@ uint16_t WS2812FX::getLength(void) {
 }
 
 uint16_t WS2812FX::getNumBytes(void) {
-  return numBytes;
+  return bytesPerPixel * numPixels();
 }
 
 uint8_t WS2812FX::getNumBytesPerPixel(void) {
-  return (wOffset == rOffset) ? 3 : 4; // 3=RGB, 4=RGBW
+  return bytesPerPixel; // 3=RGB, 4=RGBW
 }
 
 uint8_t WS2812FX::getModeCount(void) {
@@ -484,7 +488,7 @@ void WS2812FX::resetSegmentRuntime(uint8_t seg) {
  * Turns everything off. Doh.
  */
 void WS2812FX::strip_off() {
-  Adafruit_NeoPixel::clear();
+  WS2812Serial::clear();
   show();
 }
 
@@ -554,7 +558,7 @@ uint16_t WS2812FX::random16(uint16_t lim) {
 uint32_t WS2812FX::intensitySum() {
   uint8_t *pixels = getPixels();
   uint32_t sum = 0;
-  for(uint16_t i=0; i <numBytes; i++) {
+  for(uint16_t i=0; i <getNumBytes(); i++) {
     sum+= pixels[i];
   }
   return sum;
@@ -570,7 +574,7 @@ uint32_t* WS2812FX::intensitySums() {
 
   uint8_t *pixels = getPixels();
   uint8_t bytesPerPixel = getNumBytesPerPixel(); // 3=RGB, 4=RGBW
-  for(uint16_t i=0; i <numBytes; i += bytesPerPixel) {
+  for(uint16_t i=0; i <getNumBytes(); i += bytesPerPixel) {
     intensities[0] += pixels[i];
     intensities[1] += pixels[i + 1];
     intensities[2] += pixels[i + 2];
@@ -1658,4 +1662,41 @@ uint8_t WS2812FX::setCustomMode(uint8_t index, const __FlashStringHelper* name, 
  */
 void WS2812FX::setCustomShow(void (*p)()) {
   customShow = p;
+}
+
+void WS2812FX::fill(uint32_t c, uint16_t first, uint16_t count) {
+  uint16_t i, end;
+
+  if(first >= numPixels()) {
+    return; // If first LED is past end of strip, nothing to do
+  }
+
+  // Calculate the index ONE AFTER the last pixel to fill
+  if(count == 0) {
+    // Fill to end of strip
+    end = numPixels();
+  } else {
+    // Ensure that the loop won't go past the last pixel
+    end = first + count;
+    if(end > numPixels()) end = numPixels();
+  }
+
+  for(i = first; i < end; i++) {
+    this->setPixelColor(i, c);
+  }
+}
+
+uint32_t WS2812FX::getPixelColor(uint16_t n) const {
+  if(n >= numPixels()) return 0; // Out of bounds, return no color.
+
+  n *= bytesPerPixel;
+
+  uint32_t color = drawBuffer[n];
+  color += drawBuffer[n + 1] << 8;
+  color += drawBuffer[n + 2] << 16;
+  if (bytesPerPixel == 4) {
+    color += drawBuffer[n + 3] << 24;
+  }
+
+  return color;
 }

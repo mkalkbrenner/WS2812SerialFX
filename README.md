@@ -1,15 +1,15 @@
 ![WS2812FX library](https://raw.githubusercontent.com/kitesurfer1404/WS2812FX/master/WS2812FX_logo.png)
 
-WS2812FX - More Blinken for your LEDs!
-======================================
+WS2812FX on WS2812Serial - More Blinken for your LEDs!
+======================================================
 
-This library features a variety of blinken effects for the WS2811/WS2812/NeoPixel LEDs. It is meant to be a drop-in replacement for the Adafruit NeoPixel library with additional features.
+This library features a variety of blinken effects for the WS2811/WS2812/NeoPixel LEDs. It is meant to be a drop-in replacement for the WS2812Serial library with additional features.
 
 Features
 --------
 
 * 55 different effects. And counting.
-* Tested on Arduino Uno/Micro/Nano/Leonardo and ESP8266/ESP32.
+* Tested on Teensy 4.1.
 * All effects with printable names - easy to use in user interfaces.
 * FX, speed and brightness controllable on the fly.
 * Ready for sound-to-light (see external trigger example)
@@ -23,7 +23,7 @@ Download, Install and Example
 You can **search for WS2812FX in the Arduino IDE Library Manager** or install the latest (or development) version manually:
 
 
-* Install the famous [Adafruit NeoPixel library](https://github.com/adafruit/Adafruit_NeoPixel) (v1.1.7 or newer)
+* Install the [WS2812Serial library](https://github.com/PaulStoffregen/WS2812Serial)
 * Download this repository.
 * Extract to your Arduino libraries directory.
 * Open Arduino IDE.
@@ -36,10 +36,20 @@ In it's most simple form, here's the code to get you started!
 ```cpp
 #include <WS2812FX.h>
 
+// Usable pins:
+//   Teensy LC:   1, 4, 5, 24
+//   Teensy 3.2:  1, 5, 8, 10, 31   (overclock to 120 MHz for pin 8)
+//   Teensy 3.5:  1, 5, 8, 10, 26, 32, 33, 48
+//   Teensy 3.6:  1, 5, 8, 10, 26, 32, 33
+//   Teensy 4.0:  1, 8, 14, 17, 20, 24, 29, 39
+//   Teensy 4.1:  1, 8, 14, 17, 20, 24, 29, 35, 47, 53
+#define LED_PIN 1
 #define LED_COUNT 30
-#define LED_PIN 12
 
-WS2812FX ws2812fx = WS2812FX(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+byte drawingMemory[LED_COUNT*4];         // 3 bytes per LED for RGB, 4 bytes for RGBW
+DMAMEM byte displayMemory[LED_COUNT*16]; // 12 bytes per LED for RGB, 16 bytes for RGBW
+
+WS2812FX ws2812fx = WS2812FX(LED_COUNT, displayMemory, drawingMemory, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 void setup() {
   ws2812fx.init();
