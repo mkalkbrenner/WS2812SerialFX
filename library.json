@@ -7,7 +7,7 @@
     "url": "https://github.com/kitesurfer1404/WS2812FX"
   },
   "version": "1.3.2",
-  "downloadUrl": "https://github.com/mkalkbrenner/WS2812FX/archive/WS2812Serial.zip",
+  "downloadUrl": "https://github.com/mkalkbrenner/WS2812SerialFX/archive/main.zip",
   "export": {
     "include": "WS2812FX-WS2812Serial"
   },
@@ -15,7 +15,7 @@
   "platforms": "*",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mkalkbrenner/WS2812FX.git"
+    "url": "https://github.com/mkalkbrenner/WS2812SerialFX.git"
   },
   "dependencies": [
     {
