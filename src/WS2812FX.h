@@ -39,6 +39,7 @@
 #define WS2812FX_h
 
 #define FSH(x) (__FlashStringHelper*)(x)
+#define MAX_MILLIS (0UL - 1UL) /* ULONG_MAX */
 
 #include <WS2812Serial.h>
 
@@ -427,12 +428,11 @@ class WS2812FX : public WS2812Serial {
 
       resetSegments();
       setSegment(0, 0, num_leds - 1, DEFAULT_MODE, DEFAULT_COLOR, DEFAULT_SPEED, NO_OPTIONS);
-    }
+    };
 
     void
 //    timer(void),
       init(void),
-      service(void),
       start(void),
       stop(void),
       pause(void),
@@ -465,15 +465,29 @@ class WS2812FX : public WS2812Serial {
       trigger(void),
       setCycle(void),
       setNumSegments(uint8_t n),
-      setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, uint32_t color,          uint16_t speed, bool reverse),
-      setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, uint32_t color,          uint16_t speed, uint8_t options),
+
+      setSegment(),
+      setSegment(uint8_t n),
+      setSegment(uint8_t n, uint16_t start),
+      setSegment(uint8_t n, uint16_t start, uint16_t stop),
+      setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode),
+      setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, uint32_t color),
+      setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, uint32_t color, uint16_t speed),
+      setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, uint32_t color, uint16_t speed, bool reverse),
+      setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, uint32_t color, uint16_t speed, uint8_t options),
+
+      setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, const uint32_t colors[]),
+      setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, const uint32_t colors[], uint16_t speed),
       setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, const uint32_t colors[], uint16_t speed, bool reverse),
       setSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, const uint32_t colors[], uint16_t speed, uint8_t options),
+
+      setIdleSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, uint32_t color,          uint16_t speed),
       setIdleSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, uint32_t color,          uint16_t speed, uint8_t options),
       setIdleSegment(uint8_t n, uint16_t start, uint16_t stop, uint8_t mode, const uint32_t colors[], uint16_t speed, uint8_t options),
       addActiveSegment(uint8_t seg),
       removeActiveSegment(uint8_t seg),
       swapActiveSegment(uint8_t oldSeg, uint8_t newSeg),
+
       resetSegments(void),
       resetSegmentRuntimes(void),
       resetSegmentRuntime(uint8_t),
@@ -484,10 +498,12 @@ class WS2812FX : public WS2812Serial {
 /*
       setPixels(uint16_t, uint8_t*),
 */
+      setRandomSeed(uint16_t),
       fill(uint32_t c=0, uint16_t first=0, uint16_t count=0),
       show(void);
 
     bool
+      service(void),
       isRunning(void),
       isTriggered(void),
       isFrame(void),
@@ -527,6 +543,7 @@ class WS2812FX : public WS2812Serial {
     uint32_t* getColors(uint8_t);
     uint32_t* intensitySums(void);
     uint8_t*  getActiveSegments(void);
+    uint8_t*  blend(uint8_t*, uint8_t*, uint8_t*, uint16_t, uint8_t);
     uint8_t*  getPixels(void) const { return drawBuffer; };
 
     const __FlashStringHelper* getModeName(uint8_t m);
@@ -691,6 +708,71 @@ class WS2812FX : public WS2812Serial {
 
     uint8_t *drawBuffer;
     uint8_t bytesPerPixel;
+};
+
+class WS2812FXT {
+  public:
+    WS2812FXT(uint16_t num_leds, uint8_t pin, neoPixelType type,
+      uint8_t max_num_segments=MAX_NUM_SEGMENTS,
+      uint8_t max_num_active_segments=MAX_NUM_ACTIVE_SEGMENTS) {
+        v1 = new WS2812FX(num_leds, pin, type, max_num_segments, max_num_active_segments);
+        v2 = new WS2812FX(num_leds, pin, type, max_num_segments, max_num_active_segments);
+        dest = new WS2812FX(num_leds, pin, type, max_num_segments, max_num_active_segments); 
+    };
+
+    void init(void) {
+      v1->init();
+      v2->init();
+      v1->setCustomShow([]{ return; });
+      v2->setCustomShow([]{ return; });
+    }
+
+    void start(void) {
+      v1->start();
+      v2->start();
+    }
+
+    void service(void) {
+      bool doShow = v1->service() || v2->service();
+      if(doShow) {
+        _show();
+      }
+    }
+
+    void startTransition(uint16_t duration, bool direction = true) {
+      transitionStartTime = millis();
+      transitionDuration = duration;
+      transitionDirection = direction;
+    }
+
+  private:
+    void _show(void) {
+      unsigned long now = millis();
+
+      uint8_t *dest_p = dest->getPixels();
+      uint8_t *vstart_p = transitionDirection ? v1->getPixels() : v2->getPixels();
+      uint8_t *vstop_p  = transitionDirection ? v2->getPixels() : v1->getPixels();
+      uint16_t numBytes = dest->getNumBytes();
+
+      if(now < transitionStartTime) {
+        memmove(dest_p, vstart_p, numBytes);
+      } else if(now > transitionStartTime + transitionDuration) {
+        memmove(dest_p, vstop_p, numBytes);
+      } else {
+        uint8_t blendAmt = map(now, transitionStartTime, transitionStartTime + transitionDuration, 0, 255);
+        dest->blend(dest_p, vstart_p, vstop_p, numBytes, blendAmt);
+      }
+
+      dest->Adafruit_NeoPixel::show();
+    }
+
+  public:
+    WS2812FX* v1 = NULL;
+    WS2812FX* v2 = NULL;
+    WS2812FX* dest = NULL;
+    unsigned long transitionStartTime = MAX_MILLIS;
+    uint16_t transitionDuration = 5000;
+    bool transitionDirection = true;
 };
 
 // define static array of member function pointers.
