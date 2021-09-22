@@ -712,12 +712,12 @@ class WS2812FX : public WS2812Serial {
 
 class WS2812FXT {
   public:
-    WS2812FXT(uint16_t num_leds, uint8_t pin, neoPixelType type,
+    WS2812FXT(uint16_t num_leds, void *fb_v1, void *db_v1, void *fb_v2, void *db_v2, void *fb_dest, void *db_dest, uint8_t pin, uint8_t type,
       uint8_t max_num_segments=MAX_NUM_SEGMENTS,
       uint8_t max_num_active_segments=MAX_NUM_ACTIVE_SEGMENTS) {
-        v1 = new WS2812FX(num_leds, pin, type, max_num_segments, max_num_active_segments);
-        v2 = new WS2812FX(num_leds, pin, type, max_num_segments, max_num_active_segments);
-        dest = new WS2812FX(num_leds, pin, type, max_num_segments, max_num_active_segments); 
+        v1 = new WS2812FX(num_leds, fb_v1, db_v1, pin, type, max_num_segments, max_num_active_segments);
+        v2 = new WS2812FX(num_leds, fb_v2, db_v2, pin, type, max_num_segments, max_num_active_segments);
+        dest = new WS2812FX(num_leds, fb_dest, db_dest, pin, type, max_num_segments, max_num_active_segments);
     };
 
     void init(void) {
@@ -763,7 +763,7 @@ class WS2812FXT {
         dest->blend(dest_p, vstart_p, vstop_p, numBytes, blendAmt);
       }
 
-      dest->Adafruit_NeoPixel::show();
+      dest->show();
     }
 
   public:
